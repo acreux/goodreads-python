@@ -1,10 +1,9 @@
-from requests_oauthlib import OAuth1Session
-from config import get_config
 import os
-import ConfigParser
+from requests_oauthlib import OAuth1Session
 from xmltodict import parse
 
 import functools
+from config import get_config
 
 def auth(func):
     @functools.wraps(func)

@@ -18,7 +18,12 @@ setup(name='pygoodreads',
       include_package_data=True,
       zip_safe=False,
       install_requires=[
-          # -*- Extra requirements: -*-
+            "requests-oauthlib==0.4.2",
+            "Paste==1.7.5.1",
+            "PasteDeploy==1.5.2",
+            "PasteScript==1.7.5",
+            "xmltodict==0.9.2"
+
       ],
       entry_points="""
       # -*- Entry points: -*-
