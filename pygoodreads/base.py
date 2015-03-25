@@ -50,8 +50,7 @@ class GoodreadsSession(OAuth1Session):
         self._client.client.resource_owner_key = None
 
     def _connected(self):
-        res = self.get("https://www.goodreads.com/user/41256554/followers.xml?key={}".format(self.developer_key))
-        return (res.status_code == 200)
+        return (self._client.client.resource_owner_secret and self._client.client.resource_owner_key)
 
     def connect(self):
         if self._connected():
@@ -88,15 +87,17 @@ class GoodreadsSession(OAuth1Session):
 
     @auth
     def reviews(self, user_id, **kwargs):
-        """Get the books on a members shelf.
-        Parameters are:
-        * shelf: read, currently-reading, to-read, etc. (optional)
-        * sort: title, author, cover, rating, year_pub, date_pub, date_pub_edition, date_started, date_read, date_updated, date_added, recommender, avg_rating, num_ratings, review, read_count, votes, random, comments, notes, isbn, isbn13, asin, num_pages, format, position, shelves, owned, date_purchased, purchase_location, condition (optional)
-        * search[query]: query text to match against member's books (optional)
-        * order: a, d (optional)
-        * page: 1-N (optional)
+        """Get the reviews of a user. Need OAuth authentication.
+        
+        :param user_id: the id of the user
+        :type user_id: string or int
+        :param shelf: read, currently-reading, to-read, etc. (optional)
+        :param sort: title, author, cover, rating, year_pub, date_pub, date_pub_edition, date_started, date_read, date_updated, date_added, recommender, avg_rating, num_ratings, review, read_count, votes, random, comments, notes, isbn, isbn13, asin, num_pages, format, position, shelves, owned, date_purchased, purchase_location, condition (optional)
+        :param search[query]: query text to match against member's books (optional)
+        :param order: a, d (optional)
+        :param page: 1-N (optional)
+        :return: 
 
-        Access can be forbidden
         """
         params_dict = {"v": "2",
                        "id": str(user_id),
@@ -109,54 +110,68 @@ class GoodreadsSession(OAuth1Session):
             return {}
         return data_dict['reviews']
 
-    @auth
-    def review_list_all(self, user_id):
-        """Get all books on a members shelf.
-        Return a generator of all books found on this member shelf
-        """
-        # Let s make a first query to get the number of reviews
+    def objects_all(self, api_call, field):
+         # Let s make a first query to get the number of reviews
         current_page = 1
-        review_dict = self.reviews(user_id, shelf="all", page=str(current_page))
-        if not review_dict:
+        response_dict = api_call(page=str(current_page))
+        # no more response
+        if not response_dict:
             return
 
-        total_reviews = review_dict['@total']
-        current_end = review_dict['@end']
-        # current_start = review_dict['@start']
+        total_objs = response_dict['@total']
+        current_end = response_dict['@end']
+        # current_start = response_dict['@start']
 
-        # Yield the review already queried
+        # Yield the objs already queried
         try:
-            # If only one review is available, review_dict['review'] is a dict
-            if isinstance(review_dict['review'], dict):
-                yield review_dict['review']
+            # If only one obj is available, response_dict[field] is a dict
+            if isinstance(response_dict[field], dict):
+                yield response_dict[field]
             else:
-                for review in review_dict['review']:
-                    yield review
+                for obj in response_dict[field]:
+                    yield obj
         except KeyError:
-            print 'no review for ', user_id
+            print "no"
             return
 
         # safety measure: if we go too far, @end=0
-        while not current_end in (total_reviews, 0):
+        while not current_end in (total_objs, 0):
             current_page += 1
-            review_dict = self.reviews(user_id, page=str(current_page))
-            if review_dict:  # We should have access anyway
-                current_end = review_dict['@end']
-                for review in review_dict['review']:
-                    yield review
+            response_dict = api_call(page=str(current_page))
+            if response_dict:  # We should have access anyway
+                current_end = response_dict['@end']
+                for obj in response_dict[field]:
+                    yield obj
 
     @auth
-    def friends(self, user_id, page=1, sort=None):
+    def reviews_all(self, user_id):
+        """Get all reviews written by a user.
+        """
+        api_call = functools.partial(self.reviews, user_id, shelf="all")
+        reviews_gen = self.objects_all(api_call, "review")
+        for r in reviews_gen: yield r
+
+    @auth
+    def friends(self, user_id, **kwargs):
         params = {
             "format":"xml",
             "page":1,
-            "key": self.client_id
+            "key": self.developer_key
         }
-        self.get('friend/user/{}', )
+        params.update(kwargs)
+        response = self.xml('friend/user/{}'.format(user_id), params=params)
+        return response['friends']
 
     @auth
-    def friends_id_all(self, user_id):
-        for friend_id, friend_name in self.get_friends(user_id):
+    def friends_all(self, user_id, **kwargs):
+        sort = kwargs.get("sort", " first_name")
+        api_call = functools.partial(self.friends, user_id, sort=sort)
+        friends_gen = self.objects_all(api_call, "user")
+        for f in friends_gen: yield f
+
+    @auth
+    def friends_id_all(self, user_id, **kwargs):
+        for friend_id, friend_name in self.friends_all(user_id, **kwargs):
             yield friend_id
 
     def group_members(self, group_id, page=1):
