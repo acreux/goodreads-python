@@ -1,12 +1,15 @@
 import os
 import re
 import functools
+import requests
 from config import get_config
 
 from requests_oauthlib import OAuth1Session
 from xmltodict import parse
 
 from errors import NotFoundProfileException, ProfilePrivateException
+
+
 def auth(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
@@ -97,7 +100,19 @@ class GoodreadsSession(OAuth1Session):
     def xml(self, *args, **kwargs):
         """Try parse the response of the GET request
         :rtype: dict"""
-        res = self.get(*args, **kwargs)
+        kargs = {"timeout":60}
+        kargs.update(kwargs)
+        while True:
+            try:
+                res = self.get(*args, **kargs)
+                break
+            except requests.exceptions.Timeout:
+                import time
+                print "sleep"
+                # A little break 150 seconds
+                time.sleep(10)
+                continue
+
         if res.status_code > 400:
             if "forbidden" in res.text:
                 raise ProfilePrivateException()
