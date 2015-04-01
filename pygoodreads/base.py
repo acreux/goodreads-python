@@ -3,6 +3,8 @@ import re
 import functools
 import requests
 from config import get_config
+import time
+
 
 from requests_oauthlib import OAuth1Session
 from xmltodict import parse
@@ -107,17 +109,18 @@ class GoodreadsSession(OAuth1Session):
                 res = self.get(*args, **kargs)
                 break
             except requests.exceptions.Timeout:
-                import time
-                print "sleep"
+                print "TimeoutError"
                 # A little break 150 seconds
-                time.sleep(10)
+                time.sleep(60)
                 continue
-
+            except requests.exceptions.ConnectionError:
+                print "ConnectionError"
+                time.sleep(150)
         if res.status_code > 400:
             if "forbidden" in res.text:
-                raise ProfilePrivateException()
+                raise ProfilePrivateException(args, kwargs)
             elif "error" in res.text:
-                raise NotFoundProfileException()
+                raise NotFoundProfileException(args, kwargs)
             else:
                 raise Exception(res.text)
         else:
