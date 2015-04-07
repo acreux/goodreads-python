@@ -117,7 +117,7 @@ class GoodreadsSession(OAuth1Session):
                 print "ConnectionError"
                 time.sleep(150)
         if res.status_code > 400:
-            if "forbidden" in res.text:
+            if "forbidden" in res.text or "friends"in res.text:
                 raise ProfilePrivateException(args, kwargs)
             elif "error" in res.text:
                 raise NotFoundProfileException(args, kwargs)
